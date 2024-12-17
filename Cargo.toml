@@ -12,15 +12,16 @@ categories = ["embedded", "no-std"]
 [dependencies]
 tock-registers = "0.9.0"
 log = "0.4"
-dma-api = { version = "0.2", features = ["alloc"] }
-nb = "1.1"
-bitflags = "2.6"
+dma-api = "0.1"
+bare-test = "0.1.4"
+bit_field = "0.10.2"
+volatile = "0.3"
 
 [dev-dependencies]
-bare-test = "0.2"
+bare-test = "0.1.4"
 pcie = "0.2"
 byte-unit = { version = "5.1.6", default-features = false, features = ["byte"] }
-spin_on = "0.1.1"
+
 
 [build-dependencies]
 bare-test-macros = "0.0.1"

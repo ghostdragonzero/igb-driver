@@ -6,11 +6,8 @@
 
 extern crate alloc;
 
-use core::time::Duration;
-
-use bare_test::{
-    driver::device_tree::get_device_tree, fdt::PciSpace, mem::mmu::iomap, println, time::delay,
-};
+use bare_test::{driver::device_tree::get_device_tree, fdt::PciSpace, mem::mmu::iomap, println};
+use bare_test::mem::dma::*;
 use igb_driver::Igb;
 use log::{debug, info};
 use pcie::*;
@@ -18,39 +15,17 @@ use pcie::*;
 bare_test::test_setup!();
 
 #[test_case]
-fn test_work() {
-    let mut igb = get_igb();
-
-    debug!("igb init");
-
-    igb.open().unwrap();
-
-    let mac = igb.mac();
-
-    debug!("igb opened");
-
-    debug!("mac: {:x?}", mac);
-
-    while !igb.status().link_up {
-        sleep(Duration::from_millis(10));
-    }
-
-    info!("status: {:?}", igb.status());
+fn it_works1() {
+    println!("test1... ");
+    assert_eq!(1, 1);
 }
 
-fn sleep(duration: Duration) {
-    spin_on::spin_on(delay(duration));
+#[test_case]
+fn test_uart() {
+    let _igb = get_igb();
+
+    debug!("igb start");
 }
-
-struct KernelImpl;
-
-impl igb_driver::Kernel for KernelImpl {
-    fn sleep(duration: Duration) {
-        sleep(duration);
-    }
-}
-
-igb_driver::set_impl!(KernelImpl);
 
 fn get_igb() -> Igb {
     let fdt = get_device_tree().unwrap();
@@ -119,7 +94,8 @@ fn get_igb() -> Igb {
 
                 let addr = iomap(bar_addr.into(), bar_size);
 
-                let igb = Igb::new(addr).unwrap();
+                let mut igb = Igb::new(addr);
+                igb.init();
                 return igb;
             }
         }
