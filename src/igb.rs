@@ -96,8 +96,25 @@ impl Igb {
         }
 
     }
+    pub fn init(&mut self){
+        let mut mii_reg = self.phy_read(0);
+        mii_reg = self.phy_read(0);
+        mii_reg &= 0xffff;
+        mii_reg |= 1<<9;
+        info!("rs_atu write_mii{:b}", mii_reg);
+        //let status = self.get_reg32(IGB_STATUS);
+        //info!("reset end status {:b}", status);
+        loop{
+            let status = self.get_reg32(IGB_STATUS);
+            info!("status {:b}", status);
+            if (status &(1 << 1)) == (1<<1){
+                break;
+            }
+        }
+    }
+    /* 
     pub fn init(& mut self){
-        self.wait_clear_reg32(IGB_CTRL, IGB_CTRL_DEV_RST);
+        //self.wait_clear_reg32(IGB_CTRL, IGB_CTRL_DEV_RST);
         //do reset 
         info!("reset success");
        // self.set_flags32(IGB_CTRL, IGB_CTRL_LNK_RST);
@@ -114,10 +131,27 @@ impl Igb {
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
         );
         let mut mii_reg = self.phy_read(0);
+        mii_reg &= 0xffff;
+        mii_reg &= !(1<<11);
+        info!("power up write_mii{:b}", mii_reg);
+        //let status = self.get_reg32(IGB_STATUS);
+        //info!("reset end status {:b}", status);
+        self.phy_write(0, mii_reg);
+
+        mii_reg = self.phy_read(0);
+        mii_reg &= 0xffff;
         mii_reg |= 1<<9;
         info!("rs_atu write_mii{:b}", mii_reg);
-        let status = self.get_reg32(IGB_STATUS);
-        info!("reset end status {:b}", status);
+        //let status = self.get_reg32(IGB_STATUS);
+        //info!("reset end status {:b}", status);
+
+        self.phy_write(0, mii_reg);
+        mii_reg = self.phy_read(0);
+        mii_reg &= 0xffff;
+        mii_reg |= 1<<12;
+        info!("en_atu write_mii{:b}", mii_reg);
+        //let status = self.get_reg32(IGB_STATUS);
+        //info!("reset end status {:b}", status);
         self.phy_write(0, mii_reg);
 
 
@@ -127,7 +161,7 @@ impl Igb {
         info!("set SLU ok");
         loop{
             let status = self.get_reg32(IGB_STATUS);
-            //info!("status {:b}", status);
+            info!("status {:b}", status);
             if (status &(1 << 1)) == (1<<1){
                 break;
             }
@@ -144,6 +178,7 @@ impl Igb {
         */
 
     }
+    */
 
     fn get_mac_addr(&self) -> [u8; 6] {
         let low = self.get_reg32(IGB_ADDR_L);
