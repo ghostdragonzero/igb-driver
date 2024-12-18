@@ -102,9 +102,7 @@ impl Igb {
         info!("reset success");
         self.set_flags32(IGB_CTRL, IGB_CTRL_LNK_RST);
         info!("link mode is defaut 00");
-        //self.set_flags32(IGB_CTRL, IGB_CTRL_SLU);
-        //FRCSPD defaut is 0 FRCDPLX
-        //self.set_flags32(IGB_CTRL_EXT, IGB_CTRL_EXT_DRV_LOAD);
+        
         //igb get hw control
         info!("set lsu is 1");
         let mac = self.get_mac_addr();
@@ -114,11 +112,27 @@ impl Igb {
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
         );
         let mut mii_reg = self.phy_read(0);
-        mii_reg &= 1<<9 | 1<< 12;
+        info!("read_mii {:b}", mii_reg);
+        mii_reg &= !(1<<11);
         self.phy_write(0, mii_reg);
+        mii_reg = self.phy_read(0);
+        mii_reg |= 1<<9 | 1<< 12;
+        self.phy_write(0, mii_reg);
+        info!("finnal mii {:b}", mii_reg);
+        self.set_flags32(IGB_CTRL, IGB_CTRL_SLU);
+        //FRCSPD defaut is 0 FRCDPLX
+        self.set_flags32(IGB_CTRL_EXT, IGB_CTRL_EXT_DRV_LOAD);
+        loop{
+            let status = self.get_reg32(IGB_STATUS);
+            if (status &(1 << 1)) == (1<<1){
+                break;
+            }
+        }
+        info!("link up ok");
         //self.wait_set_reg32(IGB_EEC, IXGBE_EEC_ARD);
         //igb可能不需要
         //RO 位置 应该只是利用这个函数等待为1 说明读取完毕
+        
         self.setup_rx_mode();
         self.setup_tctl();
         self.setup_rctl();
@@ -310,10 +324,10 @@ impl Igb {
 
         loop {
             mdic_cmd = self.get_reg32(IGB_MDIC);
-            if (mdic_cmd & MDIC_READ) == 1{
+            if (mdic_cmd & MDIC_READ) == MDIC_READ{
                 break;
             }
-            if (mdic_cmd & MDIC_ERROR) == 1{
+            if (mdic_cmd & MDIC_ERROR) == MDIC_ERROR{
                 error!("read error");
                 return 0;
             }
@@ -327,10 +341,10 @@ impl Igb {
 
         loop {
             mdic_cmd = self.get_reg32(IGB_MDIC);
-            if (mdic_cmd & MDIC_READ) == 1{
+            if (mdic_cmd & MDIC_READ) == MDIC_READ{
                 break;
             }
-            if (mdic_cmd & MDIC_ERROR) =x= 1{
+            if (mdic_cmd & MDIC_ERROR) == MDIC_READ{
                 error!("read error");
                 return false;
             }
