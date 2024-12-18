@@ -106,12 +106,14 @@ impl Igb {
         
         //igb get hw control
         info!("set lsu is 1");
+        /* 
         let mac = self.get_mac_addr();
 
         info!(
             "mac address: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
         );
+        */
         let mut mii_reg = self.phy_read(0);
         info!("powerup read_mii {:b}", mii_reg);
         mii_reg &= !(1<<11);
@@ -122,6 +124,8 @@ impl Igb {
         info!("rs_atu read_mii {:b}", mii_reg);
         mii_reg |= 1<<9;
         info!("rs_atu write_mii{:b}", mii_reg);
+        let status = self.get_reg32(IGB_STATUS);
+        info!("reset end status {:b}", status);
 
         self.phy_write(0, mii_reg);
         mii_reg = self.phy_read(0);
@@ -136,8 +140,8 @@ impl Igb {
         info!("set SLU ok");
         loop{
             let status = self.get_reg32(IGB_STATUS);
-            info!("status {:b}", status);
-            if (status &(1 << 2)) == (1<<2){
+            //info!("status {:b}", status);
+            if (status &(1 << 1)) == (1<<1){
                 break;
             }
         }
