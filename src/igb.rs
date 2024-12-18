@@ -326,7 +326,7 @@ impl Igb {
     fn phy_read(&mut self, offset: u32) -> u32{
         let mdic_info = self.get_reg32(IGB_MDIC);
         info!("mdic_info {:b}", mdic_info);
-        let mut mdic_cmd = offset << 16 | 1 << 21 | MDIC_READ;
+        let mut mdic_cmd = (offset << 16) | (1 << 21) | (MDIC_READ);
         self.set_reg32(IGB_MDIC, mdic_cmd);
 
         loop {
@@ -345,7 +345,7 @@ impl Igb {
     fn phy_write(&mut self, offset: u32, data:u32) -> bool{
         let mdic_info = self.get_reg32(IGB_MDIC);
         info!("mdic_info {:b}", mdic_info);
-        let mut mdic_cmd = offset << 16 | 1 << 21 | data | MDIC_WRITE;
+        let mut mdic_cmd = (offset << 16) | (1 << 21) | (data) | (MDIC_WRITE);
         info!("phy write cmd {:b}", mdic_cmd);
         self.set_reg32(IGB_MDIC, mdic_cmd);
 
