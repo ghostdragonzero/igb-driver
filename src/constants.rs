@@ -152,8 +152,8 @@ pub const IGB_EICR:u32 = 0x1580;
 pub const IGB_MDIC:u32 = 0x00020;
 
 /*MDIC mask */
-pub const MDIC_READ:u32 =  0x08000000;
-pub const MDIC_WRITE:u32 = 0x04000000;
+pub const MDIC_READ:u32 =  1 << 27;
+pub const MDIC_WRITE:u32 = 1 << 26;
 pub const MDIC_READY:u32 = 1 << 28;
 pub const MDIC_ERROR:u32 = 1 << 30;
 

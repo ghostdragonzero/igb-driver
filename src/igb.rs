@@ -106,33 +106,20 @@ impl Igb {
         
         //igb get hw control
         info!("set lsu is 1");
-        /* 
+        /* */
         let mac = self.get_mac_addr();
 
         info!(
             "mac address: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
         );
-        */
         let mut mii_reg = self.phy_read(0);
-        info!("powerup read_mii {:b}", mii_reg);
-        mii_reg &= !(1<<11);
-        info!("powerup write_mii{:b}", mii_reg);
-        self.phy_write(0, mii_reg);
-
-        mii_reg = self.phy_read(0);
-        info!("rs_atu read_mii {:b}", mii_reg);
         mii_reg |= 1<<9;
         info!("rs_atu write_mii{:b}", mii_reg);
         let status = self.get_reg32(IGB_STATUS);
         info!("reset end status {:b}", status);
+        self.phy_write(0, mii_reg);
 
-        self.phy_write(0, mii_reg);
-        mii_reg = self.phy_read(0);
-        info!("en_atu read_mii {:b}", mii_reg);
-        mii_reg |= 1<<12;
-        info!("en_atu write_mii{:b}", mii_reg);
-        self.phy_write(0, mii_reg);
 
         self.set_flags32(IGB_CTRL, IGB_CTRL_START);
         //FRCSPD defaut is 0 FRCDPLX
@@ -337,6 +324,8 @@ impl Igb {
     }
 
     fn phy_read(&mut self, offset: u32) -> u32{
+        let mdic_info = self.get_reg32(IGB_MDIC);
+        info!("mdic_info {:b}", mdic_info);
         let mut mdic_cmd = offset << 16 | 1 << 21 | MDIC_READ;
         self.set_reg32(IGB_MDIC, mdic_cmd);
 
@@ -354,12 +343,16 @@ impl Igb {
     }
 
     fn phy_write(&mut self, offset: u32, data:u32) -> bool{
+        let mdic_info = self.get_reg32(IGB_MDIC);
+        info!("mdic_info {:b}", mdic_info);
         let mut mdic_cmd = offset << 16 | 1 << 21 | data | MDIC_WRITE;
+        info!("phy write cmd {:b}", mdic_cmd);
         self.set_reg32(IGB_MDIC, mdic_cmd);
 
         loop {
             mdic_cmd = self.get_reg32(IGB_MDIC);
             if (mdic_cmd & MDIC_READ) == MDIC_READ{
+                info!("write ok");
                 break;
             }
             if (mdic_cmd & MDIC_ERROR) == MDIC_READ{
