@@ -99,9 +99,9 @@ impl Igb {
     pub fn init(&mut self){
         let mut mii_reg = self.phy_read(0);
         mii_reg = self.phy_read(0);
-        mii_reg &= 0xffff;
         mii_reg |= 1<<9;
         info!("rs_atu write_mii{:b}", mii_reg);
+        self.phy_write(0, mii_reg);
         //let status = self.get_reg32(IGB_STATUS);
         //info!("reset end status {:b}", status);
         loop{
@@ -358,7 +358,7 @@ impl Igb {
         }
     }
 
-    fn phy_read(&mut self, offset: u32) -> u32{
+    fn phy_read(&mut self, offset: u32) -> u16{
         let mdic_info = self.get_reg32(IGB_MDIC);
         info!("mdic_info {:b}", mdic_info);
         let mut mdic_cmd = (offset << 16) | (1 << 21) | (MDIC_READ);
@@ -374,13 +374,13 @@ impl Igb {
                 return 0;
             }
         }
-        return mdic_cmd;
+        return mdic_cmd as u16;
     }
 
-    fn phy_write(&mut self, offset: u32, data:u32) -> bool{
+    fn phy_write(&mut self, offset: u32, data:u16) -> bool{
         let mdic_info = self.get_reg32(IGB_MDIC);
         info!("mdic_info {:b}", mdic_info);
-        let mut mdic_cmd = (offset << 16) | (1 << 21) | (data) | (MDIC_WRITE);
+        let mut mdic_cmd = (offset << 16) | (1 << 21) | (data as u32) | (MDIC_WRITE);
         info!("phy write cmd {:b}", mdic_cmd);
         self.set_reg32(IGB_MDIC, mdic_cmd);
 
