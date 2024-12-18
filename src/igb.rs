@@ -100,8 +100,9 @@ impl Igb {
         self.wait_clear_reg32(IGB_CTRL, IGB_CTRL_DEV_RST);
         //do reset 
         info!("reset success");
-        self.set_flags32(IGB_CTRL, IGB_CTRL_LNK_RST);
+       // self.set_flags32(IGB_CTRL, IGB_CTRL_LNK_RST);
         info!("link mode is defaut 00");
+        self.set_flags32(IGB_CTRL_EXT, IGB_CTRL_EXT_DRV_LOAD);
         
         //igb get hw control
         info!("set lsu is 1");
@@ -112,18 +113,26 @@ impl Igb {
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
         );
         let mut mii_reg = self.phy_read(0);
-        info!("read_mii {:b}", mii_reg);
+        info!("powerup read_mii {:b}", mii_reg);
         mii_reg &= !(1<<11);
+        info!("powerup write_mii{:b}", mii_reg);
         self.phy_write(0, mii_reg);
+
         mii_reg = self.phy_read(0);
+        info!("rs_atu read_mii {:b}", mii_reg);
         mii_reg |= 1<<9;
+        info!("rs_atu write_mii{:b}", mii_reg);
+
         self.phy_write(0, mii_reg);
         mii_reg = self.phy_read(0);
+        info!("en_atu read_mii {:b}", mii_reg);
         mii_reg |= 1<<12;
-        info!("finnal mii {:b}", mii_reg);
-        self.set_flags32(IGB_CTRL, IGB_CTRL_SLU);
+        info!("en_atu write_mii{:b}", mii_reg);
+        self.phy_write(0, mii_reg);
+
+        self.set_flags32(IGB_CTRL, IGB_CTRL_START);
         //FRCSPD defaut is 0 FRCDPLX
-        self.set_flags32(IGB_CTRL_EXT, IGB_CTRL_EXT_DRV_LOAD);
+        
         info!("set SLU ok");
         loop{
             let status = self.get_reg32(IGB_STATUS);
@@ -136,11 +145,12 @@ impl Igb {
         //self.wait_set_reg32(IGB_EEC, IXGBE_EEC_ARD);
         //igb可能不需要
         //RO 位置 应该只是利用这个函数等待为1 说明读取完毕
-        
+        /* 
         self.setup_rx_mode();
         self.setup_tctl();
         self.setup_rctl();
         self.init_rx();
+        */
 
     }
 

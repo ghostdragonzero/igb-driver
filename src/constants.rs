@@ -14,9 +14,10 @@ pub const IGB_CTRL_SLU: u32 = 1 << 6; /* Set Link Up */
 pub const IGB_CTRL_DEV_RST: u32 = 1 << 26; /* Rest Device. */
 pub const IGB_CTRL_PHY_RST: u32 = 1 << 31; /* Reset (PHY) */
 pub const IGB_CTRL_RST_MASK: u32 = IGB_CTRL_LNK_RST | IGB_CTRL_DEV_RST;
+pub const IGB_CTRL_START:u32 = 1 | 0x00000200 | IGB_CTRL_SLU |0x00000200 |0x00001000;
 
 /*CTRL EXRT Masks */
-pub const IGB_CTRL_EXT_DRV_LOAD:u32 = 0x10000000; /* Drv loaded bit for FW */
+pub const IGB_CTRL_EXT_DRV_LOAD:u32 = 1 << 28; /* Drv loaded bit for FW */
 /*RX reg */
 pub const IGB_RXCTL: u32 = 0x00100;
 pub const IGB_RXPBS: u32 = 0x02404;//defaut is 64k
