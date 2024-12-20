@@ -121,55 +121,31 @@ impl Igb {
     
     
     pub fn init(& mut self){
+        self.disable_interrupts();
+        self.set_flags32(IGB_CTRL, IGB_CTRL_DEV_RST);
         self.wait_clear_reg32(IGB_CTRL, IGB_CTRL_DEV_RST);
         //do reset 
         info!("reset success");
-       // self.set_flags32(IGB_CTRL, IGB_CTRL_LNK_RST);
+        // self.set_flags32(IGB_CTRL, IGB_CTRL_LNK_RST);
         info!("link mode is defaut 00");
+        self.disable_interrupts();
         self.set_flags32(IGB_CTRL_EXT, IGB_CTRL_EXT_DRV_LOAD);
         
-        //igb get hw control
-        info!("set lsu is 1");
-        /* */
         let mac = self.get_mac_addr();
 
         info!(
             "mac address: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
         );
-        let mut mii_reg = self.phy_read(0);
-        mii_reg &= 0xffff;
-        mii_reg &= !(1<<11);
-        info!("power up write_mii{:b}", mii_reg);
-        //let status = self.get_reg32(IGB_STATUS);
-        //info!("reset end status {:b}", status);
-        //self.phy_write(0, mii_reg);
 
-        mii_reg = self.phy_read(0);
-        mii_reg &= 0xffff;
-        mii_reg |= 1<<9;
-        info!("rs_atu write_mii{:b}", mii_reg);
-        //let status = self.get_reg32(IGB_STATUS);
-        //info!("reset end status {:b}", status);
+        info!("start link");
+        self.set_up_link_up();
 
-        self.phy_write(0, mii_reg);
-        mii_reg = self.phy_read(0);
-        mii_reg &= 0xffff;
-        mii_reg |= 1<<12;
-        info!("en_atu write_mii{:b}", mii_reg);
-        //let status = self.get_reg32(IGB_STATUS);
-        //info!("reset end status {:b}", status);
-        //self.phy_write(0, mii_reg);
-
-
-        //self.set_flags32(IGB_CTRL, IGB_CTRL_START);
-        //FRCSPD defaut is 0 FRCDPLX
-        
         //info!("set SLU ok");
         loop{
             let status = self.get_reg32(IGB_STATUS);
             //info!("status {:b}", status);
-            if (status &(1 << 1)) == (1<<1){
+            if (status &(IGB_STATUS_LINK_UP)) == (IGB_STATUS_LINK_UP){
                 break;
             }
         }
@@ -182,6 +158,7 @@ impl Igb {
         //self.setup_tctl();
         self.setup_rctl();
         self.init_rx();
+        self.init_tx();
         
 
     }
@@ -200,6 +177,40 @@ impl Igb {
             (high & 0xff) as u8,
             (high >> 8 & 0xff) as u8,
         ]
+    }
+
+    fn set_up_link_up(&mut self) {
+                let mut mii_reg = self.phy_read(0);
+        mii_reg &= 0xffff;
+        mii_reg &= !(1<<11);
+        info!("power up write_mii{:b}", mii_reg);
+        //let status = self.get_reg32(IGB_STATUS);
+        //info!("reset end status {:b}", status);
+        self.phy_write(0, mii_reg);
+
+        mii_reg = self.phy_read(0);
+        mii_reg &= 0xffff;
+        mii_reg |= 1<<9;
+        info!("rs_atu write_mii{:b}", mii_reg);
+        //let status = self.get_reg32(IGB_STATUS);
+        //info!("reset end status {:b}", status);
+        self.phy_write(0, mii_reg);
+
+
+
+        self.phy_write(0, mii_reg);
+        mii_reg = self.phy_read(0);
+        mii_reg &= 0xffff;
+        mii_reg |= 1<<12;
+        info!("en_atu write_mii{:b}", mii_reg);
+        //let status = self.get_reg32(IGB_STATUS);
+        //info!("reset end status {:b}", status);
+        self.phy_write(0, mii_reg);
+
+
+        //self.set_flags32(IGB_CTRL, IGB_CTRL_START);
+        //FRCSPD defaut is 0 FRCDPLX
+
     }
 
     fn disable_interrupts(&self) {
@@ -320,6 +331,80 @@ impl Igb {
 
         true
     }
+     fn init_tx(&mut self) -> bool {
+         const  QS:usize = 1024;
+        /* 
+        // crc offload and small packet padding
+        self.set_flags32(IXGBE_HLREG0, IXGBE_HLREG0_TXCRCEN | IXGBE_HLREG0_TXPADEN);
+
+        // section 4.6.11.3.4 - set default buffer size allocations
+        self.set_reg32(IXGBE_TXPBSIZE(0), IXGBE_TXPBSIZE_40KB);
+        for i in 1..8 {
+            self.set_reg32(IXGBE_TXPBSIZE(i), 0xff);
+        }
+        */
+
+        // required when not using DCB/VTd
+        self.set_reg32(IGB_DTXMXSZRQ, 0xffff);
+        //self.clear_flags32(IXGBE_RTTDCS, IXGBE_RTTDCS_ARBDIS);
+        //no DCB
+
+        // configure queues
+        for i in 0..self.tx_ring_count {
+            info!("initializing tx queue {}", i);
+            // section 7.1.9 - setup descriptor ring
+            assert_eq!(mem::size_of::<AdvancedTxDescriptor>(), 16);
+            let ring_size_bytes = QS * mem::size_of::<AdvancedTxDescriptor>();
+
+            let dma: Dma<AdvancedTxDescriptor> = Dma::allocate(ring_size_bytes, true).unwrap();
+
+            let mut descriptors: [NonNull<AdvancedTxDescriptor>; QS] = [NonNull::dangling(); QS];
+
+            unsafe {
+                for desc_id in 0..QS {
+                    descriptors[desc_id] = NonNull::new(dma.virt.add(desc_id)).unwrap();
+                    descriptors[desc_id].as_mut().init();
+                }
+            }
+
+            self.set_reg32(
+                IGB_TDBAL(u32::from(i)),
+                (dma.phys as u64 & 0xffff_ffff) as u32,
+            );
+            self.set_reg32(IGB_TDBAH(u32::from(i)), (dma.phys as u64 >> 32) as u32);
+            self.set_reg32(IGB_TDLEN(u32::from(i)), ring_size_bytes as u32);
+
+            info!("tx ring {} phys addr: {:#x}", i, dma.phys);
+            info!("tx ring {} virt addr: {:p}", i, dma.virt);
+
+            // descriptor writeback magic values, important to get good performance and low PCIe overhead
+            // see 7.2.3.4.1 and 7.2.3.5 for an explanation of these values and how to find good ones
+            // we just use the defaults from DPDK here, but this is a potentially interesting point for optimizations
+            let mut txdctl = self.get_reg32(IGB_TXDCTL(u32::from(i)));
+            // there are no defines for this in constants.rs for some reason
+            // pthresh: 6:0, hthresh: 14:8, wthresh: 22:16
+            txdctl &= !(0x7F | (0x7F << 8) | (0x7F << 16));
+            txdctl |= 36 | (8 << 8) | (4 << 16);
+
+            self.set_reg32(IGB_TXDCTL(u32::from(i)), txdctl);
+
+            let tx_queue = IxgbeTxQueue {
+                descriptors: Box::new(descriptors),
+                bufs_in_use: VecDeque::with_capacity(QS),
+                pool: None,
+                num_descriptors: QS,
+                clean_index: 0,
+                tx_index: 0,
+            };
+
+            self.tx_queues.push(tx_queue);
+        }
+
+        // final step: enable DMA
+        self.set_reg32(IGB_TXCTL, IGB_TXCTL_EN);
+
+        true
+    }
 
     fn get_reg32(&self, reg: u32) -> u32 {
         //assert!(reg as usize <= self.len - 4, "memory access out of bounds");
@@ -399,10 +484,11 @@ impl Igb {
         loop {
             mdic_cmd = self.get_reg32(IGB_MDIC);
             if (mdic_cmd & MDIC_READY) == MDIC_READY{
+                //use MDIC_READY not MDIC_READ
                 info!("write ok");
                 break;
             }
-            if (mdic_cmd & MDIC_ERROR) == MDIC_READ{
+            if (mdic_cmd & MDIC_ERROR) == MDIC_ERROR{
                 error!("read error");
                 return false;
             }

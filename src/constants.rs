@@ -7,6 +7,8 @@
 pub const IGB_CTRL: u32 = 0x00000;
 pub const IGB_STATUS: u32 = 0x00008;
 pub const IGB_CTRL_EXT: u32 = 0x00018;
+/*STATUS Mask */
+pub const IGB_STATUS_LINK_UP:u32 = 1 << 1;
 
 /* CTRL Bit Masks */
 pub const IGB_CTRL_LNK_RST: u32 = 1 << 3; /* Rset Link */
@@ -111,13 +113,44 @@ pub const IGB_RXCTL_RXEN: u32 = 1 << 1;
 
 /*Tx reg */
 pub const IGB_TXCTL:u32 = 0x00400;
-pub fn IGB_TXDCTL(i: u32) -> u32 {
-    if i < 15 {
-        0x0E028 + i * 0x40
-    } else {
-        0x0D018 + ((i - 64) * 0x40)
-    }
+pub const IGB_DTXMXSZRQ: u32 = 0x03540;
+
+/*Tx Mask */
+pub const IGB_TXCTL_EN: u32 = 1<<1;
+
+/* Transmit DMA registers */
+pub fn IGB_TDBAL(i: u32) -> u32 {
+    //update
+    0x0E000 + i * 0x40
+} /* 32 of them (0-31)*/
+pub fn IGB_TDBAH(i: u32) -> u32 {
+    0x0E004 + i * 0x40
 }
+
+pub fn IGB_TDLEN(i: u32) -> u32 {
+    0x0E008 + i * 0x40
+}
+
+pub fn IGB_TDH(i: u32) -> u32 {
+    0x0E010 + i * 0x40
+}
+
+pub fn IGB_TDT(i: u32) -> u32 {
+    0x0E018 + i * 0x40
+}
+
+pub fn IGB_TXDCTL(i: u32) -> u32 {
+    0x0E028 + i * 0x40
+}
+
+pub fn IGB_TDWBAL(i: u32) -> u32 {
+    0x0E038 + i * 0x40
+}
+
+pub fn IGB_TDWBAH(i: u32) -> u32 {
+    0x0E03C + i * 0x40
+}
+
 
 /*Tx mask */
 pub const IGB_TCTRL_PSP:u32 =  0x0000ff0;
