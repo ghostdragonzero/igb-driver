@@ -96,6 +96,7 @@ impl Igb {
         }
 
     }
+   /* 
     pub fn init(&mut self){
         let mut mii_reg = self.phy_read(0);
         mii_reg = self.phy_read(0);
@@ -111,10 +112,16 @@ impl Igb {
                 break;
             }
         }
+
+        self.set_flags32(IGB_RXCTL, IGB_RXCTL_RXEN);
+
+        self.wait_set_reg32(IGB_RXCTL, IGB_RXCTL_RXEN);
     }
-    /* 
+    */
+    
+    
     pub fn init(& mut self){
-        //self.wait_clear_reg32(IGB_CTRL, IGB_CTRL_DEV_RST);
+        self.wait_clear_reg32(IGB_CTRL, IGB_CTRL_DEV_RST);
         //do reset 
         info!("reset success");
        // self.set_flags32(IGB_CTRL, IGB_CTRL_LNK_RST);
@@ -136,7 +143,7 @@ impl Igb {
         info!("power up write_mii{:b}", mii_reg);
         //let status = self.get_reg32(IGB_STATUS);
         //info!("reset end status {:b}", status);
-        self.phy_write(0, mii_reg);
+        //self.phy_write(0, mii_reg);
 
         mii_reg = self.phy_read(0);
         mii_reg &= 0xffff;
@@ -152,16 +159,16 @@ impl Igb {
         info!("en_atu write_mii{:b}", mii_reg);
         //let status = self.get_reg32(IGB_STATUS);
         //info!("reset end status {:b}", status);
-        self.phy_write(0, mii_reg);
+        //self.phy_write(0, mii_reg);
 
 
-        self.set_flags32(IGB_CTRL, IGB_CTRL_START);
+        //self.set_flags32(IGB_CTRL, IGB_CTRL_START);
         //FRCSPD defaut is 0 FRCDPLX
         
-        info!("set SLU ok");
+        //info!("set SLU ok");
         loop{
             let status = self.get_reg32(IGB_STATUS);
-            info!("status {:b}", status);
+            //info!("status {:b}", status);
             if (status &(1 << 1)) == (1<<1){
                 break;
             }
@@ -170,15 +177,16 @@ impl Igb {
         //self.wait_set_reg32(IGB_EEC, IXGBE_EEC_ARD);
         //igb可能不需要
         //RO 位置 应该只是利用这个函数等待为1 说明读取完毕
-        /* 
-        self.setup_rx_mode();
-        self.setup_tctl();
+        
+        //self.setup_rx_mode();
+        //self.setup_tctl();
         self.setup_rctl();
         self.init_rx();
-        */
+        
 
     }
-    */
+    
+    
 
     fn get_mac_addr(&self) -> [u8; 6] {
         let low = self.get_reg32(IGB_ADDR_L);
@@ -223,8 +231,9 @@ impl Igb {
     fn setup_rctl(&mut self) {
         let mut rx_ctrl = self.get_reg32(IGB_RXCTL);
         rx_ctrl &= !(E1000_RCTL_LBM_TCVR | E1000_RCTL_LBM_MAC);
-        rx_ctrl |= IGB_RCTL_EN | IGB_RCTL_BAM | E1000_RCTL_SECRC;
+        rx_ctrl |= IGB_RCTL_BAM | E1000_RCTL_SECRC;
         rx_ctrl |= IGB_RCTL_LPE;
+        info!("rx_ctrl {:b}", rx_ctrl);
         self.set_reg32(IGB_RXDCTL(0), 0);
         self.set_reg32(IGB_RXCTL, rx_ctrl);
     }
@@ -237,8 +246,10 @@ impl Igb {
         // disable rx while re-configuring it
         let pool =  MemPool::allocate(MEM_POOL, MEM_POOL_ENTRY_SIZE).unwrap();
         const  QS:usize = 1024;
-        //self.wait_clear_reg32(IGB_RXCTL, IGB_RXCTL_RXEN);
-        self.set_reg32(IGB_RXDCTL(0), 0);
+        self.wait_clear_reg32(IGB_RXCTL, IGB_RXCTL_RXEN);
+        //self.set_reg32(IGB_RXDCTL(0), 0);
+        info!("start new enabel");
+        
 
         // section 4.6.11.3.4 - allocate all queues and traffic to PB0
         /*self.set_reg32(IXGBE_RXPBSIZE(0), IXGBE_RXPBSIZE_128KB);
@@ -282,7 +293,7 @@ impl Igb {
             self.set_flags32(IGB_SRRCTL(u32::from(i)), IXGBE_SRRCTL_DROP_EN);
             // Program SRRCTL of the queue according to the size of the buffers and the required header 
             info!("SRRCTL{}", self.get_reg32(IGB_SRRCTL(u32::from(i))));
-            self.wait_set_reg32(IGB_RXDCTL(0), IGB_RXDCTL_ENABLE);
+            //self.set_flags32(IGB_RXDCTL(0), IGB_RXDCTL_ENABLE);
             info!("RXDCTL OK");
 
             let rx_queue = IxgbeRxQueue {
@@ -298,8 +309,13 @@ impl Igb {
         }
 
         // enable CRC offloading
+        self.set_flags32(IGB_CTRL_EXT,  0x00010000);
+        info!("start enable rx");
+        //self.setup_rctl();
+        
+        self.set_flags32(IGB_RXCTL, IGB_RXCTL_RXEN);
 
-        self.set_reg32(IGB_RXCTL, IGB_RXCTL_RXEN);
+        self.wait_set_reg32(IGB_RXCTL, IGB_RXCTL_RXEN);
        
 
         true
@@ -359,14 +375,12 @@ impl Igb {
     }
 
     fn phy_read(&mut self, offset: u32) -> u16{
-        let mdic_info = self.get_reg32(IGB_MDIC);
-        info!("mdic_info {:b}", mdic_info);
         let mut mdic_cmd = (offset << 16) | (1 << 21) | (MDIC_READ);
         self.set_reg32(IGB_MDIC, mdic_cmd);
 
         loop {
             mdic_cmd = self.get_reg32(IGB_MDIC);
-            if (mdic_cmd & MDIC_READ) == MDIC_READ{
+            if (mdic_cmd & MDIC_READY) == MDIC_READY{
                 break;
             }
             if (mdic_cmd & MDIC_ERROR) == MDIC_ERROR{
@@ -378,15 +392,13 @@ impl Igb {
     }
 
     fn phy_write(&mut self, offset: u32, data:u16) -> bool{
-        let mdic_info = self.get_reg32(IGB_MDIC);
-        info!("mdic_info {:b}", mdic_info);
         let mut mdic_cmd = (offset << 16) | (1 << 21) | (data as u32) | (MDIC_WRITE);
         info!("phy write cmd {:b}", mdic_cmd);
         self.set_reg32(IGB_MDIC, mdic_cmd);
 
         loop {
             mdic_cmd = self.get_reg32(IGB_MDIC);
-            if (mdic_cmd & MDIC_READ) == MDIC_READ{
+            if (mdic_cmd & MDIC_READY) == MDIC_READY{
                 info!("write ok");
                 break;
             }
