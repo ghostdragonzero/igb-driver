@@ -98,7 +98,7 @@ fn get_igb() -> Igb {
                     | CommandRegister::BUS_MASTER_ENABLE
             });
 
-            if ep.vendor_id == 0x8086 && ep.device_id == 0x10C9 {
+            if ep.vendor_id == 0x8086 && (ep.device_id == 0x10C9 || ep.device_id == 0x1533) {
                 let bar_addr;
                 let bar_size;
                 match ep.bar {
