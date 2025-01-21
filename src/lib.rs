@@ -5,12 +5,13 @@ extern crate alloc;
 mod descriptor;
 mod err;
 mod igb;
+mod mac;
 mod phy;
-mod regs;
 mod ring;
 
 use core::time::Duration;
 
+use err::IgbError;
 pub use igb::*;
 
 pub trait Kernel {
@@ -35,4 +36,19 @@ macro_rules! set_impl {
             <$t as $crate::Kernel>::sleep(duration)
         }
     };
+}
+
+fn wait_for<F: Fn() -> bool>(
+    f: F,
+    interval: Duration,
+    try_count: Option<usize>,
+) -> Result<(), IgbError> {
+    for _ in 0..try_count.unwrap_or(usize::MAX) {
+        if f() {
+            return Ok(());
+        }
+
+        sleep(interval);
+    }
+    Err(IgbError::Timeout)
 }

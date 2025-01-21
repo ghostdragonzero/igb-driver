@@ -1,65 +1,31 @@
-use log::{debug, error};
-
 use crate::{
     err::IgbError,
-    regs::{Reg, SwFwSync, MDIC, SWSM},
+    mac::{Mac, SyncFlags},
 };
 
 const PHY_CONTROL: u32 = 0;
 const MII_CR_POWER_DOWN: u16 = 0x0800;
 
 pub struct Phy {
-    reg: Reg,
+    mac: Mac,
     addr: u32,
 }
 
 impl Phy {
-    pub fn new(reg: Reg) -> Self {
-        // let mdic = reg.read_reg::<MDIC>();
-        // let addr = (mdic.bits() & MDIC::PHYADD.bits()) >> 21;
-        // debug!("phy addr: {}", addr);
-        Self { reg, addr: 1 }
+    pub fn new(mac: Mac) -> Self {
+        Self { mac, addr: 1 }
     }
 
     pub fn read_mdic(&self, offset: u32) -> Result<u16, IgbError> {
-        let mut mdic = MDIC::from_bits_retain((offset << 16) | (self.addr << 21)) | MDIC::OP_READ;
-        self.reg.write_reg(mdic);
-
-        loop {
-            mdic = self.reg.read_reg::<MDIC>();
-            if mdic.contains(MDIC::READY) {
-                break;
-            }
-            if mdic.contains(MDIC::E) {
-                error!("MDIC read error");
-                return Err(IgbError::Unknown);
-            }
-        }
-
-        Ok(mdic.bits() as u16)
+        self.mac.read_mdic(self.addr, offset)
     }
 
     pub fn write_mdic(&self, offset: u32, data: u16) -> Result<(), IgbError> {
-        let mut mdic = MDIC::from_bits_retain((offset << 16) | (self.addr << 21) | (data as u32))
-            | MDIC::OP_WRITE;
-        self.reg.write_reg(mdic);
-
-        loop {
-            mdic = self.reg.read_reg::<MDIC>();
-            if mdic.contains(MDIC::READY) {
-                break;
-            }
-            if mdic.contains(MDIC::E) {
-                error!("MDIC read error");
-                return Err(IgbError::Unknown);
-            }
-        }
-
-        Ok(())
+        self.mac.write_mdic(self.addr, offset, data)
     }
 
-    pub fn aquire_sync(&self, mask: u16) -> Result<Synced, IgbError> {
-        Synced::new(self.reg, mask)
+    pub fn aquire_sync(&self, flags: SyncFlags) -> Result<Synced, IgbError> {
+        Synced::new(self.mac, flags)
     }
 
     pub fn power_up(&self) -> Result<(), IgbError> {
@@ -70,70 +36,40 @@ impl Phy {
 }
 
 pub struct Synced {
-    reg: Reg,
-    mask: u16,
+    mac: Mac,
+    mask: u32,
 }
 
 impl Synced {
-    pub fn new(reg: Reg, mask: u16) -> Result<Self, IgbError> {
-        let semaphore = Semaphore::new(reg)?;
-        let swmask = mask as u32;
-        let fwmask = (mask as u32) << 16;
-        let mut swfw_sync = SwFwSync::empty();
-        loop {
-            swfw_sync = reg.read_reg::<SwFwSync>();
-            if (swfw_sync.bits() & (swmask | fwmask)) == 0 {
-                break;
-            }
-        }
-
-        swfw_sync |= SwFwSync::from_bits_retain(swmask);
-        reg.write_reg(swfw_sync);
-
+    pub fn new(mac: Mac, flags: SyncFlags) -> Result<Self, IgbError> {
+        let semaphore = Semaphore::new(mac)?;
+        let mask = mac.software_sync_aquire(flags)?;
         drop(semaphore);
-        Ok(Self { reg, mask })
+        Ok(Self { mac, mask })
     }
 }
 
 impl Drop for Synced {
     fn drop(&mut self) {
-        let semaphore = Semaphore::new(self.reg).unwrap();
-        let mask = self.mask as u32;
-        self.reg.modify_reg(|mut swfw_sync: SwFwSync| {
-            swfw_sync.remove(SwFwSync::from_bits_retain(mask));
-            swfw_sync
-        });
-
+        let semaphore = Semaphore::new(self.mac).unwrap();
+        self.mac.software_sync_release(self.mask);
         drop(semaphore);
     }
 }
 
 pub struct Semaphore {
-    reg: Reg,
+    mac: Mac,
 }
 
 impl Semaphore {
-    pub fn new(reg: Reg) -> Result<Self, IgbError> {
-        loop {
-            let swsm = reg.read_reg::<SWSM>();
-
-            reg.write_reg(swsm | SWSM::SWESMBI);
-
-            if reg.read_reg::<SWSM>().contains(SWSM::SWESMBI) {
-                break;
-            }
-        }
-
-        Ok(Self { reg })
+    pub fn new(mac: Mac) -> Result<Self, IgbError> {
+        mac.software_semaphore_aquire()?;
+        Ok(Self { mac })
     }
 }
 
 impl Drop for Semaphore {
     fn drop(&mut self) {
-        self.reg.modify_reg(|mut reg: SWSM| {
-            reg.remove(SWSM::SMBI);
-            reg.remove(SWSM::SWESMBI);
-            reg
-        });
+        self.mac.software_semaphore_release();
     }
 }
